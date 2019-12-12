@@ -16,7 +16,12 @@ import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
 import com.baidu.mapapi.SDKInitializer;
+import com.baidu.mapapi.map.BaiduMap;
+import com.baidu.mapapi.map.MapStatusUpdate;
+import com.baidu.mapapi.map.MapStatusUpdateFactory;
 import com.baidu.mapapi.map.MapView;
+import com.baidu.mapapi.map.MyLocationData;
+import com.baidu.mapapi.model.LatLng;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +30,8 @@ public class MainActivity extends AppCompatActivity {
     public LocationClient mlocationClient;
     private TextView positionText;
     private MapView mapView;
+    private BaiduMap baiduMap;
+    private boolean isFirstLocate=true;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,6 +41,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         mapView=(MapView) findViewById(R.id.bmapView);  //设置地图显示
         positionText=(TextView) findViewById(R.id.position_text_view);
+        baiduMap=mapView.getMap(); //获取地图实例化对象
+        baiduMap.setMyLocationEnabled(true);
         List<String> permissionList=new ArrayList<>();
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
         !=PackageManager.PERMISSION_GRANTED){
@@ -54,6 +63,21 @@ public class MainActivity extends AppCompatActivity {
             registerLocation();
         }
     }
+    private void navigateTo(BDLocation location){
+        if (isFirstLocate){
+            LatLng ll=new LatLng(location.getLatitude(),location.getLongitude()); //将数据装入 纬度 经度
+            MapStatusUpdate update= MapStatusUpdateFactory.newLatLng(ll); //装入数据更新
+            baiduMap.animateMapStatus(update);
+            update =MapStatusUpdateFactory.zoomTo(16f); //设置缩放比例 值越大 地图越精细
+            baiduMap.animateMapStatus(update);
+            isFirstLocate=false;
+        }
+        MyLocationData.Builder locationBuilder=new MyLocationData.Builder();
+        locationBuilder.latitude(location.getLatitude());
+        locationBuilder.longitude(location.getLongitude());
+        MyLocationData locationData=locationBuilder.build();
+        baiduMap.setMyLocationData(locationData);
+    }
     private void registerLocation(){
         initLocation();
         mlocationClient.start();
@@ -62,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
         LocationClientOption option=new LocationClientOption();
         option.setScanSpan(5000);
         option.setLocationMode(LocationClientOption.LocationMode.Hight_Accuracy);
+        option.setCoorType("bd09ll"); //bd09ll  表示百度经纬度坐标， gcj02   表示经过国测局加密的坐标， wgs84   表示gps获取的坐标。
         option.setIsNeedAddress(true);
         mlocationClient.setLocOption(option);
     }
@@ -101,10 +126,8 @@ public class MainActivity extends AppCompatActivity {
             currentPosition.append("区：").append(bdLocation.getDistrict()).append("\r\n");
             currentPosition.append("街道：").append(bdLocation.getStreet()).append("\r\n");
             currentPosition.append("定位方式：");
-            if (bdLocation.getLocType()==BDLocation.TypeGpsLocation){
-                currentPosition.append("GPS");
-            }else if (bdLocation.getLocType()==BDLocation.TypeNetWorkLocation){
-                currentPosition.append("网络");
+            if (bdLocation.getLocType()==BDLocation.TypeGpsLocation||bdLocation.getLocType()==BDLocation.TypeNetWorkLocation){
+                navigateTo(bdLocation);
             }
             positionText.setText(currentPosition);
         }
@@ -115,6 +138,7 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         mlocationClient.stop();
         mapView.onDestroy();
+        baiduMap.setMyLocationEnabled(false);
     }
 
     @Override
